@@ -1,0 +1,21 @@
+{
+  "name": "聊天室",
+  "version": "1.0.0",
+  "description": "a chat",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "devDependencies": {
+    "redis": "^2.8.0",
+    "nodejs-websocket": "^1.7.1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bluebird": "^3.5.1",
+    "co-redis": "^2.1.1",
+    "nodejs-websocket": "^1.7.1",
+    "redis": "^2.8.0"
+  }
+}

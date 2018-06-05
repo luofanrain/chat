@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>聊天</title>
+	<link rel="stylesheet" href="./org/css/chat.css">
+	<script src="./org/js/jquery.min.js"></script>
+	<link rel="stylesheet" src="./org/layui/css/layui.css" media="all"> 
+</head>
+<body>
+	<div class="chat-cont">
+		<div class="chat-title" id="yourName">we are family</div>
+		<div class="chat-content">			
+			<div class="chat-left" id="listUser">
+<!-- 				<div class="chat-person">
+					<div class="person-image"></div>
+					<div class="person-content">
+						<div class="person-message">
+
+							<div class="person-time">16:51</div>
+							<div class="person-name">张三</div>
+						</div>
+						<div class="person-message person-message-color">今天去洒家吃饭把</div>
+					</div>
+				</div> -->
+			</div>
+			<div class="chat-right">
+				<div class="chat-message-cont " id="content">
+					<!-- <div class="chat-message-send">
+						<div>
+							<div class="chat-message-image person-image"></div>
+							<div class="chat-message-content">
+									<div class="chat-message-sendperson">
+										<div class="chat-send-person" title="张三">张三</div>
+										<div class="chat-send-time">2018-05-07 18:09</div>
+									</div>
+									<div style="clear:both">
+									<div class="chat-message-sendcontent">你好啊，李四</div></div>
+							</div>
+						</div>
+					</div>
+					<div class="chat-message-receive">
+						<div>
+							<div class="chat-message-image person-image"></div>
+							<div class="chat-message-content">
+									<div class="chat-message-sendperson">						
+										<div class="chat-send-person" title="李四">李四</div>
+										<div class="chat-send-time">2018-05-07 18:09</div>
+									</div>
+									<div style="clear:both">
+									<div class="chat-message-sendcontent">你好啊，张三</div></div>
+							</div>
+						</div>
+					</div>-->
+				</div>
+				<div class="chat-message-sendmessage">
+					<div class="chat-edit" id="editor"></div>
+					<div class="chat-btn">						
+						<button class="btn send-content">发送</button>
+						<button class="btn clear-content">清空</button>
+					</div>
+				</div>
+
+			</div>
+		</div>
+	</div>
+
+</body>
+<!-- <script src="https://unpkg.com/wangeditor@3.1.1/release/wangEditor.min.js"></script> -->
+<script src="./org/release/wangEditor.min.js"></script>
+<script src="./org/layui/layui.all.js"></script>
+<script>
+	var E = window.wangEditor;
+	var currentName;
+	var arr={};
+    var editor = new E('#editor');
+    editor.customConfig.menus = [
+        'fontSize',
+        'bold',
+        'fontName',
+        'italic',
+        'underline', 
+    	'foreColor',
+    	'strikeThrough',
+    	'undo', 
+    	'emoticon',
+    ]
+    editor.create();
+
+    var websocket = null;
+    if ('WebSocket' in window) {
+        websocket = new WebSocket("ws://39.108.120.57:9000/");
+    } else {
+        alert('当前浏览器不支持websocket')
+    }
+    //登录后操作
+    websocket.onopen = function(err){
+
+    	getname(function(name){
+    		var name = name|| "a";
+	    	data = {};
+	    	data.type = 'enter';
+	    	arr.name =name;
+	    	arr.toname = "";
+	    	data.data = arr;
+	    	websocket.send(JSON.stringify(data));
+	    	$('.send-content').on('click',function(){
+		    	arr.time = getTime();
+		    	arr.message = editor.txt.html();
+		    	data.data = arr;
+	    		data.type = 'message';
+		    	editor.txt.html("");
+		    	websocket.send(JSON.stringify(data))
+	    	})
+	    	sendName = function(name,ele){	   		
+	    		$('.chat-person').css('background','white');
+	    		$(ele).css('background',"#e8e5e3");
+	    		data.type = 'list';
+	    		$('#yourName').text(name);
+	    		arr.toname = name;	    		
+		    	websocket.send(JSON.stringify(data));
+	    	}
+    	});
+
+    }
+    //服务器返回信息后的操作
+    websocket.onmessage = function(res) {
+
+    	var res = JSON.parse(res.data);    	
+    	var val = res.data;
+    	// console.log(res);
+    	if(res.type == "error"){
+    		// console.log(res);
+    		return;
+    	}
+    	if(res.type=='enter'){
+    		if(res.status=='101'){
+    			layer.confirm('用户已经在线', {
+				  btn: ['知道了'] //按钮
+				}, function(){
+				  window.location.href="./chat.html";
+				});
+    		}else{
+    			currentName=val.name;
+    			setUser(res.data.group);
+    			$('#myGroup').click();
+    		}
+    		return;
+    	}
+
+    	if(res.type=='list'){
+    		$('#content').html("");
+    		res.countData.forEach(function(value,index){
+    			if(value.name == arr.toname && arr.name ==value.toname || value.toname== "group" && arr.toname == "group" && value.name != arr.name){
+		    		getMessage(value);
+		    	}else if(value.name == arr.name && arr.toname ==value.toname){
+    				sendMessage(value);
+		    	}
+    		})
+
+    		$("#content").scrollTop($("#content")[0].scrollHeight);
+    		return;
+    	}
+    	if(val.name == arr.toname && arr.name ==val.toname){
+    		getMessage(val);
+    	}else if(val.name == arr.name && arr.toname ==val.toname){
+    		sendMessage(val);
+    	}
+    	$("#content").scrollTop($("#content")[0].scrollHeight);
+    	// console.log(val.name+"发送给"+val.toname);
+    }
+    //服务器断开链接的时候通知前台
+    websocket.onclose = function(data) {
+        console.log('服务器已经断开链接');
+        window.location.reload();
+        console.log(data);
+    }
+    //websocket链接错误
+    websocket.onerror = function() {
+        alert("Webscoket连接发生错误");
+    }
+    //当前网页关闭后调用服务器回调
+    window.onbeforeunload = function() {
+        // websocket.close(currentName);        
+        var data = {};
+        data.type="error";
+        data.data={}
+        data.data.name= currentName;
+        data.data.type= "error";
+        websocket.send(JSON.stringify(data));
+    }
+    var sendMessage = function(data){
+
+    	var content = $('#content');
+    	var str = '<div class="chat-message-send">'+
+					'<div>'+
+						'<div class="chat-message-image person-image"></div>'+
+						'<div class="chat-message-content">'+
+								'<div class="chat-message-sendperson">'+
+									'<div class="chat-send-person" title="'+data.name+'">'+data.name+'</div>'+
+									'<div class="chat-send-time">'+data.time+'</div>'+
+								'</div>'+
+								'<div style="clear:both">'+
+								'<div class="chat-message-sendcontent">'+data.message+'</div></div>'+
+						'</div>'+
+					'</div>'+
+				'</div>';
+		content.append(str);
+
+    }
+    var setgroup = function(){
+    	var listUser = $("#listUser");
+    	var str ='<div class="chat-person" onclick="sendName(\'group\',this)" id="myGroup">'+
+						'<div class="person-image"></div>'+
+						'<div class="person-content">'+
+							'<div class="person-message">'+
+								'<div class="person-time">16:51</div>'+
+								'<div class="person-name">公共群</div>'+
+							'</div>'+
+							'<div class="person-message person-message-color">今天去洒家吃饭把</div>'+
+						'</div>'+
+					'</div>';
+		listUser.append(str);
+    }
+    var setUser = function(list){
+    	var listUser = $("#listUser");
+    	listUser.html("");
+    	setgroup(listUser);
+    	// console.log(list);
+    	list.forEach(function(val,index){
+    		if(val == unescape(arr.name)){
+
+    		}else{
+	    		var str ='<div class="chat-person" onclick="sendName(\''+val+'\',this)">'+
+						'<div class="person-image"></div>'+
+						'<div class="person-content">'+
+							'<div class="person-message">'+
+								'<div class="person-time">16:51</div>'+
+								'<div class="person-name">'+val+'</div>'+
+							'</div>'+
+							'<div class="person-message person-message-color">今天去洒家吃饭把</div>'+
+						'</div>'+
+					'</div>';
+				listUser.append(str);
+			}
+    	})
+    	
+    }
+    var getMessage = function(data){
+    	var content = $('#content');
+    	var str ='<div class="chat-message-receive" >'+
+					'<div>'+
+						'<div class="chat-message-image person-image"></div>'+
+						'<div class="chat-message-content">'+
+								'<div class="chat-message-sendperson">						'+
+									'<div class="chat-send-person" title="'+data.name+'">'+data.name+'</div>'+
+									'<div class="chat-send-time">'+data.time+'</div>'+
+								'</div>'+
+								'<div style="clear:both">'+
+								'<div class="chat-message-sendcontent">'+data.message+'</div></div>'+
+						'</div>'+
+					'</div>'+
+				'</div>'
+		content.append(str);
+    }
+    var getTime = function(){
+    	var d = new Date();  
+		var year = d.getFullYear(); 
+		var month = d.getMonth()+1; 
+		var date = d.getDate(); 
+		var hours = d.getHours(); 
+		var minutes = d.getMinutes(); 
+		var seconds = d.getSeconds(); 
+		var time = year+"-"+month+"-"+date+" "+hours+":"+minutes+":"+seconds;
+		return time;
+    }
+    layui.use('layer', function(){ 
+  		layer = layui.layer;
+  	})
+    var getname = function (callback){
+    	var url = window.location.href;
+    	var param = url.split('name=');
+    	if(param[1]){
+    		return callback(decodeURI(param[1]));
+    	}else{
+	    	layer.prompt({
+	    		title: 'Your Name', 
+	    		formType: 2,
+	    		area: ['240px', '20px'],
+	    		btn2:function() {
+	    			window.location.href="./chat.html";
+			    }}, function(pass, index){
+						  layer.close(index);
+						  window.location.href=url+"?name="+encodeURI(pass);
+				});
+						// window.location.href="./chat.html";
+			}
+    }
+</script>
+</html>
